@@ -1,0 +1,60 @@
+# Dev infrastructure only. web + worker run on the host (`pnpm dev`) for the fastest inner loop on
+# Windows; the bot always runs in its own container (M3). Ports are published to localhost.
+#   docker compose -f infra/compose/docker-compose.dev.yml up -d
+name: pmn-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pmn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pmn}
+      POSTGRES_DB: ${POSTGRES_DB:-pmn}
+    ports:
+      - '${PG_HOST_PORT:-5432}:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pmn} -d ${POSTGRES_DB:-pmn}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_HOST_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible object storage for recordings (SeaweedFS — simple single-process S3 in dev).
+  objectstore:
+    image: chrislusf/seaweedfs:latest
+    restart: unless-stopped
+    command: >
+      server -dir=/data -s3 -s3.port=8333
+      -s3.config=/etc/seaweedfs/s3.json
+      -master.volumeSizeLimitMB=2000 -volume.max=0 -ip.bind=0.0.0.0
+    ports:
+      - '${S3_HOST_PORT:-8333}:8333'
+    volumes:
+      - objstore_data:/data
+      - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8333/status']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_data:
+  redis_data:
+  objstore_data:

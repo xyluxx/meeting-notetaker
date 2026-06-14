@@ -1,0 +1,11 @@
+# Normalize line endings to LF in the repo (works the same on Windows/macOS/Linux containers).
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.ico binary
+*.y4m binary
+*.mp4 binary
+*.wav binary
+*.m4a binary

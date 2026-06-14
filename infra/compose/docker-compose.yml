@@ -1,0 +1,162 @@
+# Full stack. Runs identically on the VPS and for full local e2e. On the VPS, set CADDY_DOMAIN to a
+# real domain and CADDY_TLS_MODE to acme (default). Build context for app images is the repo root.
+#   docker compose -f infra/compose/docker-compose.yml up -d
+name: pmn
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pmn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pmn}
+      POSTGRES_DB: ${POSTGRES_DB:-pmn}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pmn} -d ${POSTGRES_DB:-pmn}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [mbnet]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [mbnet]
+
+  objectstore:
+    image: chrislusf/seaweedfs:latest
+    restart: unless-stopped
+    command: >
+      server -dir=/data -s3 -s3.port=8333
+      -s3.config=/etc/seaweedfs/s3.json
+      -master.volumeSizeLimitMB=2000 -volume.max=0 -ip.bind=0.0.0.0
+    volumes:
+      - objstore_data:/data
+      - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '-', 'http://localhost:8333/status']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [mbnet]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    command: ['node', '--import', 'tsx', 'scripts/migrate.ts']
+    working_dir: /app/packages/db
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    networks: [mbnet]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://objectstore:8333
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [mbnet]
+
+  worker-scheduler:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      WORKER_ROLE: scheduler
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [mbnet]
+
+  worker-bot-manager:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      WORKER_ROLE: bot-manager
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://objectstore:8333
+    # bot-manager is the ONLY service with the Docker socket (spawns ephemeral bot containers).
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [mbnet]
+
+  worker-summarizer:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      WORKER_ROLE: summarizer
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [mbnet]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+      CADDY_TLS: ${CADDY_TLS_MODE:-internal}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    networks: [mbnet]
+
+volumes:
+  pg_data:
+  redis_data:
+  objstore_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  mbnet:
+    driver: bridge

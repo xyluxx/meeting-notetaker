@@ -1,0 +1,17 @@
+# Reverse proxy + automatic HTTPS.
+#   Local full-stack: CADDY_DOMAIN=localhost  CADDY_TLS=internal   (self-signed local CA)
+#   VPS:              CADDY_DOMAIN=meet.you.com CADDY_TLS=you@you.com (Let's Encrypt via ACME)
+
+{$CADDY_DOMAIN:localhost} {
+	encode zstd gzip
+
+	# Live status is Server-Sent Events — disable proxy buffering so events flush immediately.
+	@sse path_regexp sse ^/api/v1/meetings/[^/]+/stream$
+	reverse_proxy @sse web:3000 {
+		flush_interval -1
+	}
+
+	reverse_proxy web:3000
+
+	tls {$CADDY_TLS:internal}
+}

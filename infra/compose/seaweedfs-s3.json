@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "pmn",
+      "credentials": [
+        {
+          "accessKey": "pmn-access-key",
+          "secretKey": "pmn-secret-key"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

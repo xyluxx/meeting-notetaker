@@ -1,0 +1,46 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# test / coverage
+coverage/
+playwright-report/
+test-results/
+.vitest/
+
+# data & artifacts (local runs)
+data/
+recordings/
+screenshots/
+*.mp4
+*.m4a
+*.wav
+!tests/fixtures/**/*.wav
+
+# logs
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
