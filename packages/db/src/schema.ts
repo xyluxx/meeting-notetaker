@@ -124,6 +124,63 @@ export const users = pgTable('users', {
   updatedAt: updatedAt(),
 });
 
+/*
+ * Better Auth tables. Property names are camelCase to match Better Auth's field expectations; the
+ * Drizzle adapter is configured with usePlural + generateId:false (DB-generated uuids). `accounts`
+ * here is Better Auth's auth/provider table — distinct from `connected_accounts` (calendar sources).
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: id(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    token: text('token').notNull().unique(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: id(),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('accounts_user_idx').on(t.userId)],
+);
+
+export const verifications = pgTable(
+  'verifications',
+  {
+    id: id(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('verifications_identifier_idx').on(t.identifier)],
+);
+
 export const apiKeys = pgTable(
   'api_keys',
   {

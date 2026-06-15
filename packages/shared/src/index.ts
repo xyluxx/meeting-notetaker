@@ -1,3 +1,3 @@
-export * from './types.js';
-export * from './meet-link.js';
-export * from './scopes.js';
+export * from './types';
+export * from './meet-link';
+export * from './scopes';

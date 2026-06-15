@@ -1,4 +1,4 @@
-import type { MeetUrlSource } from './types.js';
+import type { MeetUrlSource } from './types';
 
 /**
  * A Google Meet meeting code looks like `abc-defg-hij` (3-4-3 lowercase letters).
