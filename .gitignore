@@ -25,6 +25,9 @@ playwright-report/
 test-results/
 .vitest/
 
+# pinned Vexa upstream checkout (cloned on demand; see infra/compose/vexa/README.md)
+infra/compose/vexa/upstream/
+
 # data & artifacts (local runs)
 data/
 recordings/
