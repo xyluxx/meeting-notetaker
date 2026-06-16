@@ -15,6 +15,13 @@
       "when": 1781481666305,
       "tag": "0001_tired_azazel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781642518066,
+      "tag": "0002_slimy_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

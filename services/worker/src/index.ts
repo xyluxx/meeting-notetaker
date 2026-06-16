@@ -1,18 +1,18 @@
 /**
- * Worker entrypoint. One image, three roles selected by WORKER_ROLE:
- *   - scheduler    : calendar sync -> delayed join jobs, watch-channel re-arm
- *   - bot-manager  : consume the meetings queue, spawn/monitor/reap bot containers
- *   - summarizer   : transcription + OpenRouter summary jobs
+ * Worker entrypoint. One image, roles selected by WORKER_ROLE:
+ *   - scheduler    : calendar sync -> delayed join jobs
+ *   - vexa-driver  : consume the meetings queue, drive Vexa over REST (POST /bots) + WS consumer
+ *   - summarizer   : transcript ingest + OpenRouter summary jobs
  *
- * M0 stands up the process skeleton (Redis connectivity + heartbeat + graceful shutdown).
- * Job processors are added in their respective milestones (M3/M5/M6/M8).
+ * M0/M1 stand up the process skeleton (Redis connectivity + heartbeat + graceful shutdown).
+ * Job processors are added in their milestones (M5 vexa-driver, M6 WS, M7 ingest, M8 summarize).
  */
 import { Redis } from 'ioredis';
 import { bullConnectionOptions, redisUrl } from './queues.js';
 
-type WorkerRole = 'scheduler' | 'bot-manager' | 'summarizer';
+type WorkerRole = 'scheduler' | 'vexa-driver' | 'summarizer';
 
-const VALID_ROLES: readonly WorkerRole[] = ['scheduler', 'bot-manager', 'summarizer'];
+const VALID_ROLES: readonly WorkerRole[] = ['scheduler', 'vexa-driver', 'summarizer'];
 
 function resolveRole(): WorkerRole {
   const role = process.env.WORKER_ROLE ?? 'scheduler';

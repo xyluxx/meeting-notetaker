@@ -99,20 +99,19 @@ services:
       migrate: { condition: service_completed_successfully }
     networks: [mbnet]
 
-  worker-bot-manager:
+  worker-vexa-driver:
     build:
       context: ../..
       dockerfile: services/worker/Dockerfile
     restart: unless-stopped
     env_file: ../../.env
     environment:
-      WORKER_ROLE: bot-manager
+      WORKER_ROLE: vexa-driver
       DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://objectstore:8333
-    # bot-manager is the ONLY service with the Docker socket (spawns ephemeral bot containers).
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Drives Vexa over REST/WebSocket; no Docker socket (we don't spawn bots ourselves).
+      VEXA_BASE_URL: ${VEXA_BASE_URL:-http://vexa-gateway:8056}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

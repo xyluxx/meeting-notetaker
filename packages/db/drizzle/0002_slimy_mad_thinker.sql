@@ -1,0 +1,1 @@
+ALTER TYPE "public"."transcript_engine" ADD VALUE 'vexa' BEFORE 'faster_whisper';

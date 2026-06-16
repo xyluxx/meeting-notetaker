@@ -53,7 +53,11 @@ export const transcriptStatusEnum = pgEnum('transcript_status', [
   'complete',
   'failed',
 ]);
-export const transcriptEngineEnum = pgEnum('transcript_engine', ['faster_whisper', 'whisperx']);
+export const transcriptEngineEnum = pgEnum('transcript_engine', [
+  'vexa',
+  'faster_whisper',
+  'whisperx',
+]);
 export const recordingStatusEnum = pgEnum('recording_status', [
   'uploading',
   'stored',
