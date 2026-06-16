@@ -24,11 +24,23 @@ uses.
 
 ## Acceptance criteria
 
-- [ ] `docker network create vexa-network`; CPU transcription worker built + up (model `tiny`).
-- [ ] Vexa core stack up via `make all` on the shared network; `ADMIN_TOKEN` changed off `changeme`.
-- [ ] `node scripts/vexa.mjs status` shows gateway `:8056/docs` + admin `:8057/docs` reachable.
-- [ ] `node scripts/vexa.mjs mint` returns a user API key; stored encrypted in Settings.
-- [ ] `docker stats` captured to size CPU/RAM for 1–2 concurrent bots.
+- [x] Vexa core stack up via `make all` (in WSL2, space-free path, `SHELL=/bin/bash`, clean
+      `DOCKER_CONFIG`); all containers healthy; `ADMIN_TOKEN` randomized.
+- [x] Gateway `:8056/docs` + admin `:8057/docs` reachable (HTTP 200).
+- [x] User API key minted (by `make`'s `setup-api-key`) and **authenticates** (`GET /bots/status` → 200).
+- [x] Live OpenAPI confirms the M4 client's paths + `POST /bots` body fields.
+- [ ] CPU transcription worker up (`docker-compose.cpu.yml`, model `tiny`) — **deferred to M3** (only
+      needed when a real bot records; the `make all` transcription smoke fails until then — expected).
+- [ ] Copy the minted key into our Settings AES-GCM-encrypted — **done in M5**.
+- [ ] `docker stats` sizing — capture during the M3 live run.
+
+## Gotchas hit & fixed (Windows/WSL)
+
+- Vexa's Makefile uses bash-isms → run with `SHELL=/bin/bash` (WSL `/bin/sh` is dash).
+- Makefile doesn't quote paths → our repo path has a space; run Vexa from a space-free WSL dir
+  (`~/vexa-engine`). Location is irrelevant to our app (reaches it via localhost ports).
+- WSL Docker cred-helper fails (`error getting credentials`) → set `DOCKER_CONFIG` to an empty config so
+  public images pull anonymously.
 
 ## Deliverables (this milestone)
 
