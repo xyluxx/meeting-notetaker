@@ -1,0 +1,39 @@
+diff --git a/services/vexa-bot/core/src/index.ts b/services/vexa-bot/core/src/index.ts
+index 3a5d804..9bf545a 100644
+--- a/services/vexa-bot/core/src/index.ts
++++ b/services/vexa-bot/core/src/index.ts
+@@ -2561,6 +2561,34 @@ export async function runBot(botConfig: BotConfig): Promise<void> {// Store botC
+     Object.defineProperty(window, "innerHeight", { get: () => 1080 });
+     Object.defineProperty(window, "outerWidth", { get: () => 1920 });
+     Object.defineProperty(window, "outerHeight", { get: () => 1080 });
++
++    // WebGL renderer spoof — the bot runs headful under Xvfb with no GPU, so Chromium's
++    // WEBGL_debug_renderer_info reports "Google SwiftShader" / "Google Inc.", a software
++    // rasterizer that exists on zero real devices and is THE most obvious headless tell
++    // (reCAPTCHA Enterprise fuses it into a low score and bounces the guest to
++    // workspace.google.com). Report a plausible Linux/Mesa Intel ANGLE renderer instead,
++    // consistent with the Linux x86_64 Chrome UA. 37445 = UNMASKED_VENDOR_WEBGL,
++    // 37446 = UNMASKED_RENDERER_WEBGL.
++    const GL_SPOOF: Record<number, string> = {
++      37445: "Google Inc. (Intel)",
++      37446:
++        "ANGLE (Intel, Mesa Intel(R) UHD Graphics (CML GT2), OpenGL 4.6 (Core Profile) Mesa 23.2.1)",
++    };
++    for (const proto of [
++      (self as any).WebGLRenderingContext?.prototype,
++      (self as any).WebGL2RenderingContext?.prototype,
++    ]) {
++      if (!proto) continue;
++      const orig = proto.getParameter;
++      proto.getParameter = function (param: number) {
++        if (param in GL_SPOOF) return GL_SPOOF[param];
++        return orig.call(this, param);
++      };
++      // keep toString native-looking so the patch itself isn't an obvious tell
++      try {
++        proto.getParameter.toString = () => "function getParameter() { [native code] }";
++      } catch {}
++    }
+   });
+ 
+   // Virtual camera is controlled by cameraEnabled (independent of voiceAgentEnabled).
