@@ -2,7 +2,9 @@
 export const QUEUE = {
   /** Delayed "join this meeting" jobs fired at start-minus-lead. */
   meetings: 'meetings',
-  /** Post-call: download recording, run STT. */
+  /** Per-meeting status polling against Vexa until the bot completes/fails. */
+  vexaPoll: 'vexa-poll',
+  /** Post-call: pull transcript from Vexa, store it. */
   transcription: 'transcription',
   /** After transcript: OpenRouter summary + action items. */
   summarize: 'summarize',

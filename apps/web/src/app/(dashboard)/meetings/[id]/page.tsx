@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { StatusBadge } from '@/components/status-badge';
 import { getMeetingDetail } from '@/lib/meetings';
 import { getCurrentSession } from '@/lib/session';
 import { ActionItems } from './action-items';
+import { LiveStatus } from './live-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         </Link>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{meeting.title ?? 'Meeting'}</h1>
-          <StatusBadge status={meeting.status} />
+          <LiveStatus meetingId={meeting.id} initialStatus={meeting.status} />
         </div>
         <a
           href={meeting.meetUrl ?? '#'}

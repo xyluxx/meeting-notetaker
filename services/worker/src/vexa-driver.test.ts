@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planDispatch } from './vexa-driver.js';
+import { mapVexaStatus, planDispatch } from './vexa-driver.js';
 
 describe('planDispatch', () => {
   it('maps a Google Meet meeting to a Vexa create-bot request', () => {
@@ -30,5 +30,35 @@ describe('planDispatch', () => {
     expect(
       planDispatch({ meetUrl: 'https://zoom.us/j/123', source: 'manual' }, { botName: 'Bot' }),
     ).toBeNull();
+  });
+
+  it('maps Teams links with passcode', () => {
+    const plan = planDispatch(
+      { meetUrl: 'https://teams.live.com/meet/937517380519?p=abc', source: 'manual' },
+      { botName: 'Bot' },
+    );
+    expect(plan?.platform).toBe('teams');
+    expect(plan?.nativeMeetingId).toBe('937517380519');
+    expect(plan?.passcode).toBe('abc');
+    expect(plan?.teamsBaseHost).toBe('teams.live.com');
+  });
+});
+
+describe('mapVexaStatus', () => {
+  it('maps the Vexa lifecycle to our statuses', () => {
+    expect(mapVexaStatus('joining')?.status).toBe('joining');
+    expect(mapVexaStatus('awaiting_admission')?.status).toBe('waiting_lobby');
+    expect(mapVexaStatus('active')?.status).toBe('recording');
+    expect(mapVexaStatus('completed')).toEqual({
+      status: 'processing',
+      terminal: true,
+      completed: true,
+    });
+    expect(mapVexaStatus('failed')).toEqual({
+      status: 'failed_recording',
+      terminal: true,
+      completed: false,
+    });
+    expect(mapVexaStatus('weird-unknown')).toBeNull();
   });
 });
