@@ -10,6 +10,8 @@
 import { getDb } from '@pmn/db';
 import { Redis } from 'ioredis';
 import { bullConnectionOptions, redisUrl } from './queues.js';
+import { startSummarizer } from './summarizer.js';
+import { startTranscriptIngest } from './transcript-ingest.js';
 import { startVexaDriver } from './vexa-driver.js';
 
 type WorkerRole = 'scheduler' | 'vexa-driver' | 'summarizer';
@@ -39,6 +41,11 @@ async function main() {
   if (role === 'vexa-driver') {
     startVexaDriver({ db: getDb() });
     console.log('[worker:vexa-driver] consuming the meetings dispatch queue');
+  } else if (role === 'summarizer') {
+    const db = getDb();
+    startTranscriptIngest({ db });
+    startSummarizer({ db });
+    console.log('[worker:summarizer] consuming the transcription + summarize queues');
   }
 
   // Heartbeat so the container is observably alive until real processors land.
