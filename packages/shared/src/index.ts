@@ -5,3 +5,6 @@ export * from './scopes';
 export * from './vexa-client';
 export * from './openrouter';
 export * from './auto-join';
+export * from './secret-box';
+export * from './ical';
+export * from './caldav';

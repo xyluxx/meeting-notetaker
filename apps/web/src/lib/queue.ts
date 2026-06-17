@@ -16,3 +16,13 @@ export function meetingsQueue(): Queue {
   }
   return meetingsQueueSingleton;
 }
+
+let calendarSyncQueueSingleton: Queue | undefined;
+
+/** Producer for the `calendar-sync` queue — triggers an on-demand sync from the dashboard. */
+export function calendarSyncQueue(): Queue {
+  if (!calendarSyncQueueSingleton) {
+    calendarSyncQueueSingleton = new Queue('calendar-sync', { connection: connection() });
+  }
+  return calendarSyncQueueSingleton;
+}

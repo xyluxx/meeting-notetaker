@@ -82,6 +82,27 @@ export const SETTINGS_CATALOG = {
     default: 60,
     label: 'Join lead time (seconds before start)',
   },
+  'auto_join.skip_title_keywords': {
+    group: 'auto_join',
+    type: 'json',
+    default: [],
+    label: 'Skip meetings whose title contains',
+    description: 'Comma-separated keywords; matching meetings are never auto-joined.',
+  },
+  'auto_join.allow_domains': {
+    group: 'auto_join',
+    type: 'json',
+    default: [],
+    label: 'Only auto-join when a participant is from',
+    description: 'Email domains (e.g. acme.com). Leave empty to allow all.',
+  },
+  'auto_join.deny_domains': {
+    group: 'auto_join',
+    type: 'json',
+    default: [],
+    label: 'Never auto-join when a participant is from',
+    description: 'Email domains to always skip.',
+  },
 } as const satisfies Record<string, SettingDef>;
 
 export type SettingKey = keyof typeof SETTINGS_CATALOG;

@@ -65,7 +65,7 @@ export const BOT_END_REASONS = [
 export type BotEndReason = (typeof BOT_END_REASONS)[number];
 
 /** Source of a normalized meeting. */
-export const MEETING_SOURCES = ['google', 'caldav', 'manual'] as const;
+export const MEETING_SOURCES = ['google', 'caldav', 'ics', 'manual'] as const;
 export type MeetingSource = (typeof MEETING_SOURCES)[number];
 
 /** Provenance of an extracted Meet URL (useful for debugging selector/parse drift). */
@@ -73,7 +73,12 @@ export const MEET_URL_SOURCES = ['conferenceData', 'hangoutLink', 'regex', 'manu
 export type MeetUrlSource = (typeof MEET_URL_SOURCES)[number];
 
 /** Kind of external account connected to the dashboard. */
-export const CONNECTED_ACCOUNT_PROVIDERS = ['google_calendar', 'google_gmail', 'caldav'] as const;
+export const CONNECTED_ACCOUNT_PROVIDERS = [
+  'google_calendar',
+  'google_gmail',
+  'caldav',
+  'ics',
+] as const;
 export type ConnectedAccountProvider = (typeof CONNECTED_ACCOUNT_PROVIDERS)[number];
 
 /** Health of a connected account's credentials. */

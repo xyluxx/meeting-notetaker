@@ -9,6 +9,7 @@
  */
 import { getDb } from '@pmn/db';
 import { Redis } from 'ioredis';
+import { startScheduler } from './calendar-sync.js';
 import { bullConnectionOptions, redisUrl } from './queues.js';
 import { startSummarizer } from './summarizer.js';
 import { startTranscriptIngest } from './transcript-ingest.js';
@@ -38,7 +39,10 @@ async function main() {
   console.log(`[worker:${role}] started; redis=${redisUrl()}`);
 
   // Role-specific processors.
-  if (role === 'vexa-driver') {
+  if (role === 'scheduler') {
+    await startScheduler({ db: getDb() });
+    console.log('[worker:scheduler] syncing calendars + scheduling joins');
+  } else if (role === 'vexa-driver') {
     startVexaDriver({ db: getDb() });
     console.log('[worker:vexa-driver] consuming the meetings dispatch queue');
   } else if (role === 'summarizer') {
