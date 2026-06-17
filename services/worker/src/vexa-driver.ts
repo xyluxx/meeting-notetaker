@@ -220,7 +220,8 @@ export function startVexaDriver(deps: { db: Database }): { dispatch: Worker; pol
   const enqueuePoll = async (data: PollJobData, delayMs: number) => {
     await pollQueue.add('poll', data, {
       delay: delayMs,
-      jobId: `poll:${data.meetingId}:${data.attempt}`,
+      // No ':' — BullMQ rejects custom job IDs containing a colon.
+      jobId: `poll-${data.meetingId}-${data.attempt}`,
     });
   };
 

@@ -110,7 +110,14 @@ export async function dispatchMeeting(userId: string, meetingId: string): Promis
     .update(schema.meetings)
     .set({ status: 'scheduled' })
     .where(eq(schema.meetings.id, meetingId));
-  await meetingsQueue().add('dispatch', { meetingId }, { jobId: `meeting:${meetingId}` });
+  const queue = meetingsQueue();
+  // No ':' — BullMQ rejects custom job IDs containing a colon.
+  const jobId = `meeting-${meetingId}`;
+  // Remove any prior completed/failed/stuck job first: BullMQ ignores an add() that reuses an
+  // existing jobId, so without this a meeting could only ever be dispatched once. removeOn* also
+  // keeps the queue from accumulating finished jobs that would block the next dispatch.
+  await queue.remove(jobId).catch(() => undefined);
+  await queue.add('dispatch', { meetingId }, { jobId, removeOnComplete: true, removeOnFail: true });
 }
 
 /** Toggle an action item done/undone, verifying it belongs to the owner. */

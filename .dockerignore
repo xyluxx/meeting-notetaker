@@ -1,0 +1,46 @@
+# Build context hygiene — the worker/web Dockerfiles COPY . . from the repo root, so keep
+# secrets, deps, caches, and the pinned Vexa checkout out of the image layers.
+
+# deps & caches (reinstalled in-image)
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# secrets & env (compose injects env at runtime via env_file/environment)
+.env
+.env.*
+
+# build outputs / caches
+dist/
+**/dist/
+.next/
+**/.next/
+.turbo/
+**/*.tsbuildinfo
+out/
+build/
+
+# vcs & local tooling
+.git/
+.github/
+.vscode/
+.idea/
+
+# pinned Vexa upstream checkout (large; cloned separately)
+infra/compose/vexa/upstream/
+
+# local run artifacts
+data/
+recordings/
+screenshots/
+coverage/
+playwright-report/
+test-results/
+*.log
+*.wav
+*.mp4
+*.m4a
+
+# os junk
+.DS_Store
+Thumbs.db

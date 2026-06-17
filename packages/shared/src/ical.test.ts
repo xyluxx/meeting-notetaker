@@ -98,6 +98,7 @@ function evt(over: Partial<VEvent>): VEvent {
     organizerEmail: null,
     attendeeEmails: [],
     rrule: null,
+    exdates: [],
     recurrenceId: null,
     sequence: 0,
     ...over,
@@ -157,5 +158,45 @@ describe('expandOccurrences', () => {
     });
     const occ = expandOccurrences(e, winStart, winEnd);
     expect(occ).toHaveLength(2); // 10th, 11th (12th 08:00 is after UNTIL midnight)
+  });
+
+  it('drops EXDATE-excluded occurrences', () => {
+    const e = evt({
+      start: new Date('2026-06-10T08:00:00Z'),
+      rrule: 'FREQ=DAILY;COUNT=4',
+      exdates: [new Date('2026-06-11T08:00:00Z'), new Date('2026-06-13T08:00:00Z')],
+    });
+    const occ = expandOccurrences(e, winStart, winEnd).map((d) => d.toISOString());
+    expect(occ).toEqual(['2026-06-10T08:00:00.000Z', '2026-06-12T08:00:00.000Z']);
+  });
+
+  it('fast-forwards an unbounded daily series that started years ago (>1000 days)', () => {
+    // Started 2022; without fast-forward the scan would exhaust its iteration cap before 2026.
+    const e = evt({ start: new Date('2022-01-01T08:00:00Z'), rrule: 'FREQ=DAILY' });
+    const occ = expandOccurrences(
+      e,
+      new Date('2026-06-10T00:00:00Z'),
+      new Date('2026-06-12T23:59:59Z'),
+    );
+    expect(occ.map((d) => d.toISOString())).toEqual([
+      '2026-06-10T08:00:00.000Z',
+      '2026-06-11T08:00:00.000Z',
+      '2026-06-12T08:00:00.000Z',
+    ]);
+  });
+
+  it('parses EXDATE (with TZID) from an ICS document', () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:rec@x',
+      'DTSTART:20260610T080000Z',
+      'RRULE:FREQ=DAILY;COUNT=3',
+      'EXDATE:20260611T080000Z',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    const [e] = parseICalendar(ics);
+    expect(e!.exdates.map((d) => d.toISOString())).toEqual(['2026-06-11T08:00:00.000Z']);
   });
 });

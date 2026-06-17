@@ -20,7 +20,9 @@ export interface VEvent {
   organizerEmail: string | null;
   attendeeEmails: string[];
   rrule: string | null;
-  /** RECURRENCE-ID present → this VEVENT overrides a single occurrence. */
+  /** Excluded occurrence start times (EXDATE) — these instances are cancelled. */
+  exdates: Date[];
+  /** RECURRENCE-ID present → this VEVENT overrides a single occurrence (by its original start). */
   recurrenceId: Date | null;
   sequence: number;
 }
@@ -197,7 +199,10 @@ function emailFromCalAddress(value: string): string | null {
 export function parseICalendar(text: string): VEvent[] {
   const lines = unfoldIcs(text);
   const events: VEvent[] = [];
-  let cur: Partial<VEvent> & { attendeeEmails: string[] } = { attendeeEmails: [] };
+  let cur: Partial<VEvent> & { attendeeEmails: string[]; exdates: Date[] } = {
+    attendeeEmails: [],
+    exdates: [],
+  };
   let depth = 0; // nested component depth inside a VEVENT (e.g. VALARM)
   let inEvent = false;
 
@@ -207,7 +212,7 @@ export function parseICalendar(text: string): VEvent[] {
     if (prop.name === 'BEGIN' && prop.value === 'VEVENT') {
       inEvent = true;
       depth = 0;
-      cur = { attendeeEmails: [], sequence: 0 };
+      cur = { attendeeEmails: [], exdates: [], sequence: 0 };
       continue;
     }
     if (!inEvent) continue;
@@ -226,6 +231,7 @@ export function parseICalendar(text: string): VEvent[] {
           organizerEmail: cur.organizerEmail ?? null,
           attendeeEmails: cur.attendeeEmails,
           rrule: cur.rrule ?? null,
+          exdates: cur.exdates,
           recurrenceId: cur.recurrenceId ?? null,
           sequence: cur.sequence ?? 0,
         });
@@ -268,6 +274,14 @@ export function parseICalendar(text: string): VEvent[] {
       case 'RRULE':
         cur.rrule = prop.value;
         break;
+      case 'EXDATE': {
+        // May be a comma-separated list, and may appear on multiple lines.
+        for (const v of prop.value.split(',')) {
+          const { date } = parseICalDate(v.trim(), prop.params.TZID);
+          if (date) cur.exdates.push(date);
+        }
+        break;
+      }
       case 'DTSTART': {
         const { date, allDay } = parseICalDate(prop.value, prop.params.TZID);
         cur.start = date;
@@ -357,43 +371,90 @@ export function parseRRule(rrule: string): RRule {
 }
 
 const MAX_ITERATIONS = 1000;
+const DAY_MS = 86_400_000;
+
+/**
+ * First occurrence index (>= 0) whose time is at or just before `winStartMs`, so a long-running
+ * series that started years ago doesn't exhaust MAX_ITERATIONS before reaching the window. Only used
+ * for unbounded series (no COUNT — COUNT must be counted from the first occurrence). We deliberately
+ * land one step early to avoid skipping a boundary occurrence.
+ */
+function fastForwardIndex(
+  startMs: number,
+  winStartMs: number,
+  freq: string,
+  interval: number,
+): number {
+  if (winStartMs <= startMs) return 0;
+  const start = new Date(startMs);
+  const win = new Date(winStartMs);
+  let steps = 0;
+  switch (freq) {
+    case 'DAILY':
+      steps = Math.floor((winStartMs - startMs) / DAY_MS / interval);
+      break;
+    case 'WEEKLY':
+      steps = Math.floor((winStartMs - startMs) / (7 * DAY_MS) / interval);
+      break;
+    case 'MONTHLY':
+      steps = Math.floor(
+        ((win.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+          (win.getUTCMonth() - start.getUTCMonth())) /
+          interval,
+      );
+      break;
+    case 'YEARLY':
+      steps = Math.floor((win.getUTCFullYear() - start.getUTCFullYear()) / interval);
+      break;
+    default:
+      return 0;
+  }
+  return Math.max(0, steps - 1);
+}
 
 /**
  * Occurrence start times for an event within [windowStart, windowEnd] (inclusive). Non-recurring
  * events yield their single start if it falls in the window. Supports DAILY/WEEKLY/MONTHLY/YEARLY
- * with INTERVAL/COUNT/UNTIL and BYDAY (weekly).
+ * with INTERVAL/COUNT/UNTIL and BYDAY (weekly). EXDATE-excluded instances are dropped. For unbounded
+ * series the scan fast-forwards to the window so a years-old series still materializes correctly.
  */
 export function expandOccurrences(event: VEvent, windowStart: Date, windowEnd: Date): Date[] {
   if (!event.start) return [];
+  const winStart = windowStart.getTime();
+  const winEnd = windowEnd.getTime();
+  const excluded = new Set(event.exdates.map((d) => d.getTime()));
+
   if (!event.rrule) {
-    return event.start >= windowStart && event.start <= windowEnd ? [event.start] : [];
+    const ms = event.start.getTime();
+    return ms >= winStart && ms <= winEnd && !excluded.has(ms) ? [event.start] : [];
   }
   const rule = parseRRule(event.rrule);
   const out: Date[] = [];
   const startMs = event.start.getTime();
-  const winStart = windowStart.getTime();
-  const winEnd = windowEnd.getTime();
+  const bounded = rule.count !== null; // COUNT must be counted from the first occurrence
   let emitted = 0;
 
   const push = (ms: number): boolean => {
     if (rule.until && ms > rule.until.getTime()) return false;
     if (rule.count !== null && emitted >= rule.count) return false;
     emitted++;
-    if (ms >= winStart && ms <= winEnd) out.push(new Date(ms));
+    if (ms >= winStart && ms <= winEnd && !excluded.has(ms)) out.push(new Date(ms));
     return true;
   };
 
   if (rule.freq === 'WEEKLY' && rule.byday.length > 0) {
-    // Walk week by week; within each active week emit the configured weekdays.
-    const base = new Date(startMs);
-    const baseDow = base.getUTCDay();
-    const weekStartMs = startMs - baseDow * 86_400_000; // Sunday of the start week, at start's time
-    for (let w = 0, iter = 0; iter < MAX_ITERATIONS; w += rule.interval, iter++) {
-      const weekMs = weekStartMs + w * 7 * 86_400_000;
-      if (weekMs > winEnd + 7 * 86_400_000) break;
+    const baseDow = new Date(startMs).getUTCDay();
+    const weekStartMs = startMs - baseDow * DAY_MS; // Sunday of the start week, at start's time
+    const w0 = bounded
+      ? 0
+      : Math.max(0, Math.floor((winStart - weekStartMs) / (7 * DAY_MS) / rule.interval) - 1) *
+        rule.interval;
+    for (let w = w0, iter = 0; iter < MAX_ITERATIONS; w += rule.interval, iter++) {
+      const weekMs = weekStartMs + w * 7 * DAY_MS;
+      if (weekMs > winEnd + 7 * DAY_MS) break;
       let stop = false;
       for (const dow of [...rule.byday].sort((a, b) => a - b)) {
-        const ms = weekMs + dow * 86_400_000;
+        const ms = weekMs + dow * DAY_MS;
         if (ms < startMs) continue;
         if (!push(ms)) {
           stop = true;
@@ -428,7 +489,8 @@ export function expandOccurrences(event: VEvent, windowStart: Date, windowEnd: D
     return d.getTime();
   };
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
+  const i0 = bounded ? 0 : fastForwardIndex(startMs, winStart, rule.freq, rule.interval);
+  for (let i = i0; i < i0 + MAX_ITERATIONS; i++) {
     const ms = step(i);
     if (Number.isNaN(ms)) break;
     if (ms > winEnd) break;

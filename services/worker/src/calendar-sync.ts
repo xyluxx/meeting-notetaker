@@ -39,10 +39,45 @@ export interface PlannedMeeting {
   autoJoinReason: string;
 }
 
+function buildPlanned(
+  event: VEvent,
+  meetingUrl: string,
+  externalEventId: string,
+  startAt: Date,
+  durationMs: number | null,
+  rules: AutoJoinRules,
+  calendarDefault: boolean | null,
+): PlannedMeeting {
+  const decision = evaluateAutoJoin(rules, {
+    calendarDefault,
+    organizerEmail: event.organizerEmail,
+    attendeeEmails: event.attendeeEmails,
+    title: event.summary,
+    hasMeetUrl: true,
+  });
+  return {
+    externalEventId,
+    externalIcalUid: event.uid,
+    title: event.summary,
+    startAt,
+    endAt: durationMs !== null ? new Date(startAt.getTime() + durationMs) : null,
+    meetUrl: meetingUrl,
+    organizerEmail: event.organizerEmail,
+    attendees: event.attendeeEmails,
+    autoJoin: decision.join,
+    autoJoinReason: decision.reason,
+  };
+}
+
 /**
  * Pure: turn parsed VEVENTs into the set of meetings to upsert for one calendar, within
  * [windowStart, windowEnd], applying the auto-join rule engine. Events without a recognized join URL
  * are dropped. Recurring events fan out to one planned meeting per occurrence.
+ *
+ * RFC 5545 exceptions are handled so the bot joins each real slot exactly once:
+ *  - EXDATE-cancelled occurrences are dropped (handled in expandOccurrences).
+ *  - A RECURRENCE-ID override VEVENT replaces the occurrence at its original time (keyed to the same
+ *    externalEventId so the DB upsert updates rather than duplicating); a CANCELLED override removes it.
  */
 export function planMeetingsFromEvents(
   events: VEvent[],
@@ -51,38 +86,48 @@ export function planMeetingsFromEvents(
   rules: AutoJoinRules,
   calendarDefault: boolean | null,
 ): PlannedMeeting[] {
-  const out: PlannedMeeting[] = [];
+  const duration = (e: VEvent) => (e.start && e.end ? e.end.getTime() - e.start.getTime() : null);
+  const byKey = new Map<string, PlannedMeeting>();
+
+  // Pass 1 — master events (no RECURRENCE-ID): expand to occurrences.
   for (const event of events) {
+    if (event.recurrenceId) continue;
     if (event.status === 'CANCELLED') continue;
     const meeting = extractEventMeeting(event);
     if (!meeting) continue;
-    const occurrences = expandOccurrences(event, windowStart, windowEnd);
-    const durationMs =
-      event.start && event.end ? event.end.getTime() - event.start.getTime() : null;
-    for (const start of occurrences) {
-      const decision = evaluateAutoJoin(rules, {
-        calendarDefault,
-        organizerEmail: event.organizerEmail,
-        attendeeEmails: event.attendeeEmails,
-        title: event.summary,
-        hasMeetUrl: true,
-      });
-      const isRecurring = Boolean(event.rrule);
-      out.push({
-        externalEventId: isRecurring ? `${event.uid}::${start.toISOString()}` : event.uid,
-        externalIcalUid: event.uid,
-        title: event.summary,
-        startAt: start,
-        endAt: durationMs !== null ? new Date(start.getTime() + durationMs) : null,
-        meetUrl: meeting.url,
-        organizerEmail: event.organizerEmail,
-        attendees: event.attendeeEmails,
-        autoJoin: decision.join,
-        autoJoinReason: decision.reason,
-      });
+    const isRecurring = Boolean(event.rrule);
+    for (const start of expandOccurrences(event, windowStart, windowEnd)) {
+      const key = isRecurring ? `${event.uid}::${start.toISOString()}` : event.uid;
+      byKey.set(
+        key,
+        buildPlanned(event, meeting.url, key, start, duration(event), rules, calendarDefault),
+      );
     }
   }
-  return out;
+
+  // Pass 2 — overrides (RECURRENCE-ID): replace or cancel the targeted occurrence. The override keys
+  // to its ORIGINAL start (recurrenceId) so it collides with the pass-1 entry, but carries the moved
+  // start/title. An override that is cancelled or moved out of the window removes the slot entirely.
+  for (const event of events) {
+    if (!event.recurrenceId) continue;
+    const key = `${event.uid}::${event.recurrenceId.toISOString()}`;
+    const meeting = extractEventMeeting(event);
+    const start = event.start;
+    if (event.status === 'CANCELLED' || !meeting || !start) {
+      byKey.delete(key);
+      continue;
+    }
+    if (start.getTime() < windowStart.getTime() || start.getTime() > windowEnd.getTime()) {
+      byKey.delete(key);
+      continue;
+    }
+    byKey.set(
+      key,
+      buildPlanned(event, meeting.url, key, start, duration(event), rules, calendarDefault),
+    );
+  }
+
+  return [...byKey.values()];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -291,8 +336,13 @@ export async function scheduleUpcomingJoins(db: Database, meetingsQueue: Queue):
     }
     const lead = leadByUser.get(m.userId)!;
     const delay = Math.max(0, m.startAt.getTime() - lead * 1000 - now.getTime());
-    // jobId dedups across re-syncs; BullMQ ignores a duplicate add.
-    await meetingsQueue.add('dispatch', { meetingId: m.id }, { jobId: `meeting:${m.id}`, delay });
+    // jobId dedups across re-syncs while the delayed job is pending; removeOn* frees the id once the
+    // job runs/fails so a later dispatch (manual retry or a future occurrence) is never blocked.
+    await meetingsQueue.add(
+      'dispatch',
+      { meetingId: m.id },
+      { jobId: `meeting-${m.id}`, delay, removeOnComplete: true, removeOnFail: true },
+    );
     scheduled++;
   }
   return scheduled;
