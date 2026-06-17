@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentSession } from '@/lib/session';
 import { getSettings } from '@/lib/settings';
@@ -30,6 +31,20 @@ export default async function SettingsPage() {
           leadSeconds: Number(settings['auto_join.lead_seconds'] ?? 60),
         }}
       />
+      <Link
+        href="/settings/api"
+        className="flex items-center justify-between rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 transition hover:border-[var(--color-accent)]"
+      >
+        <div>
+          <h2 className="text-sm font-semibold">API &amp; MCP access</h2>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            Issue scoped keys for your AI agent to read meetings over REST and MCP.
+          </p>
+        </div>
+        <span aria-hidden className="text-[var(--muted-foreground)]">
+          &rarr;
+        </span>
+      </Link>
     </div>
   );
 }
