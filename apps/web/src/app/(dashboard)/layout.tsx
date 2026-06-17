@@ -24,7 +24,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex min-h-screen bg-[var(--background)] text-[var(--foreground)]">
         <Sidebar brand={brand} userName={session.user.name ?? session.user.email} />
         <main className="flex-1 overflow-x-hidden">
-          <div className="mx-auto max-w-5xl px-6 py-8 md:px-10">{children}</div>
+          {/* pt-20 on mobile clears the fixed top bar; normal padding on md+. */}
+          <div className="mx-auto max-w-5xl px-6 pb-10 pt-20 md:px-10 md:py-8">{children}</div>
         </main>
       </div>
     </div>

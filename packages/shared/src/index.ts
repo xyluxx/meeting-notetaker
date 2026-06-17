@@ -8,3 +8,4 @@ export * from './auto-join';
 export * from './secret-box';
 export * from './ical';
 export * from './caldav';
+export * from './channels';

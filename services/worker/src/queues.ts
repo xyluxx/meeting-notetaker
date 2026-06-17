@@ -16,10 +16,9 @@ export const QUEUE = {
 
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 
-/** Redis Pub/Sub channel for a meeting's live status (fanned out to dashboard via SSE). */
-export function meetingStatusChannel(meetingId: string): string {
-  return `meeting:${meetingId}:status`;
-}
+// Channel-name helpers live in @pmn/shared so the worker (publisher) and web SSE route (subscriber)
+// can never drift. Re-exported here for the worker modules that import them from './queues.js'.
+export { meetingStatusChannel, meetingTranscriptChannel } from '@pmn/shared';
 
 export function redisUrl(): string {
   return process.env.REDIS_URL ?? 'redis://localhost:6379';

@@ -2,10 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useToast } from '@/components/toast';
 import { addMeeting } from './actions';
 
 export function AddMeetingForm() {
   const router = useRouter();
+  const toast = useToast();
   const [link, setLink] = useState('');
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +22,11 @@ export function AddMeetingForm() {
     if (res.ok) {
       setLink('');
       setTitle('');
+      toast('Meeting added.', 'success');
       router.refresh();
     } else {
       setError(res.error ?? 'Failed');
+      toast(res.error ?? 'Could not add that meeting.', 'error');
     }
   }
 

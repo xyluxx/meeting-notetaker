@@ -12,6 +12,7 @@ import {
   type VexaCreateBotInput,
   VexaClient,
   type VexaPlatform,
+  mapVexaSegments,
   parseMeetingUrl,
 } from '@pmn/shared';
 import { type Job, Queue, Worker } from 'bullmq';
@@ -21,6 +22,7 @@ import {
   bullConnection,
   bullConnectionOptions,
   meetingStatusChannel,
+  meetingTranscriptChannel,
   redisUrl,
 } from './queues.js';
 import { vexaConfig } from './vexa-config.js';
@@ -150,6 +152,7 @@ export async function dispatchMeeting(deps: DispatchDeps, meetingId: string): Pr
 
 const POLL_INTERVAL_MS = 15_000;
 const POLL_MAX_ATTEMPTS = Number(process.env.VEXA_POLL_MAX_ATTEMPTS ?? '960'); // ~4h at 15s
+const LIVE_SEGMENT_CAP = 600; // bound the live-transcript payload to the most recent N segments
 
 export interface PollDeps {
   db: Database;
@@ -172,9 +175,11 @@ export async function pollMeeting(deps: PollDeps, data: PollJobData): Promise<vo
   const { db, vexa, publish, enqueueTranscription, enqueuePoll } = deps;
 
   let vexaStatus: string;
+  let liveSegments: ReturnType<typeof mapVexaSegments> = [];
   try {
     const t = await vexa.getTranscript(data.platform, data.nativeMeetingId);
     vexaStatus = t.status;
+    liveSegments = mapVexaSegments(t.segments);
   } catch {
     // Transient (e.g. meeting record not ready yet) — retry unless we've exhausted attempts.
     if (data.attempt < POLL_MAX_ATTEMPTS) {
@@ -184,6 +189,21 @@ export async function pollMeeting(deps: PollDeps, data: PollJobData): Promise<vo
   }
 
   const mapped = mapVexaStatus(vexaStatus);
+
+  // Near-live transcript: stream the current segments to the dashboard while the call is in progress.
+  // On completion the ingest job stores the authoritative transcript, so we only stream pre-completion.
+  if (liveSegments.length > 0 && (!mapped || !mapped.completed)) {
+    const recent = liveSegments.slice(-LIVE_SEGMENT_CAP).map((s) => ({
+      startMs: s.startMs,
+      speaker: s.speaker,
+      text: s.text,
+    }));
+    publish(
+      meetingTranscriptChannel(data.meetingId),
+      JSON.stringify({ type: 'transcript', segments: recent }),
+    );
+  }
+
   if (mapped) {
     await db
       .update(schema.meetings)

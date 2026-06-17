@@ -1,6 +1,6 @@
 import 'server-only';
-import { and, asc, desc, eq, schema } from '@pmn/db';
-import { parseMeetingUrl } from '@pmn/shared';
+import { and, asc, count, desc, eq, ilike, or, schema } from '@pmn/db';
+import { MEETING_STATUSES, parseMeetingUrl } from '@pmn/shared';
 import { db } from './db';
 import { meetingsQueue } from './queue';
 
@@ -43,13 +43,59 @@ function platformLabel(p: string): string {
         : 'Meeting';
 }
 
-export async function listMeetings(userId: string) {
+export interface ListMeetingsOpts {
+  query?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function meetingFilters(userId: string, opts: ListMeetingsOpts) {
+  const filters = [eq(schema.meetings.userId, userId)];
+  // Only filter on a recognized status — an arbitrary string would be an invalid enum value and
+  // make Postgres reject the whole query.
+  if (opts.status && (MEETING_STATUSES as readonly string[]).includes(opts.status)) {
+    filters.push(eq(schema.meetings.status, opts.status as (typeof MEETING_STATUSES)[number]));
+  }
+  if (opts.query?.trim()) {
+    const pattern = `%${opts.query.trim()}%`;
+    const text = or(
+      ilike(schema.meetings.title, pattern),
+      ilike(schema.meetings.description, pattern),
+    );
+    if (text) filters.push(text);
+  }
+  return and(...filters);
+}
+
+/** Paginated, optionally searched/filtered list of the owner's meetings (most recent first). */
+export async function listMeetings(userId: string, opts: ListMeetingsOpts = {}) {
   return db
     .select()
     .from(schema.meetings)
-    .where(eq(schema.meetings.userId, userId))
+    .where(meetingFilters(userId, opts))
     .orderBy(desc(schema.meetings.createdAt))
-    .limit(200);
+    .limit(opts.limit ?? 50)
+    .offset(opts.offset ?? 0);
+}
+
+/** Total meetings matching the same filters — for pagination. */
+export async function countMeetings(userId: string, opts: ListMeetingsOpts = {}): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.meetings)
+    .where(meetingFilters(userId, opts));
+  return Number(row?.n ?? 0);
+}
+
+/** Count the owner's open (not-done) action items across all meetings. */
+export async function countOpenActionItems(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.actionItems)
+    .innerJoin(schema.meetings, eq(schema.actionItems.meetingId, schema.meetings.id))
+    .where(and(eq(schema.meetings.userId, userId), eq(schema.actionItems.done, false)));
+  return Number(row?.n ?? 0);
 }
 
 /** Meeting + latest transcript (with segments) + latest summary + action items. */

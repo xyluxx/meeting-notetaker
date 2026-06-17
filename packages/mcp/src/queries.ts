@@ -1,4 +1,5 @@
 import { type Database, and, asc, desc, eq, ilike, or, schema } from '@pmn/db';
+import { MEETING_STATUSES } from '@pmn/shared';
 import type {
   ListActionItemsOpts,
   MeetingQueries,
@@ -11,7 +12,10 @@ export function createDbQueries(db: Database): MeetingQueries {
   return {
     async searchMeetings(userId, opts: SearchMeetingsOpts) {
       const filters = [eq(schema.meetings.userId, userId)];
-      if (opts.status) filters.push(eq(schema.meetings.status, opts.status as never));
+      // Ignore an unrecognized status rather than send an invalid enum value to Postgres.
+      if (opts.status && (MEETING_STATUSES as readonly string[]).includes(opts.status)) {
+        filters.push(eq(schema.meetings.status, opts.status as (typeof MEETING_STATUSES)[number]));
+      }
       if (opts.query) {
         const pattern = `%${opts.query}%`;
         const text = or(
