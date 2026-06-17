@@ -7,8 +7,10 @@
  * M0/M1 stand up the process skeleton (Redis connectivity + heartbeat + graceful shutdown).
  * Job processors are added in their milestones (M5 vexa-driver, M6 WS, M7 ingest, M8 summarize).
  */
+import { getDb } from '@pmn/db';
 import { Redis } from 'ioredis';
 import { bullConnectionOptions, redisUrl } from './queues.js';
+import { startVexaDriver } from './vexa-driver.js';
 
 type WorkerRole = 'scheduler' | 'vexa-driver' | 'summarizer';
 
@@ -32,6 +34,12 @@ async function main() {
   });
 
   console.log(`[worker:${role}] started; redis=${redisUrl()}`);
+
+  // Role-specific processors.
+  if (role === 'vexa-driver') {
+    startVexaDriver({ db: getDb() });
+    console.log('[worker:vexa-driver] consuming the meetings dispatch queue');
+  }
 
   // Heartbeat so the container is observably alive until real processors land.
   const heartbeat = setInterval(() => {

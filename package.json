@@ -26,6 +26,11 @@
     "infra:ps": "node scripts/compose.mjs ps",
     "doctor": "node scripts/doctor.mjs"
   },
+  "pnpm": {
+    "overrides": {
+      "ioredis": "5.11.1"
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.19.21",
     "playwright-core": "^1.50.0",

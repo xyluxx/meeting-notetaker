@@ -27,3 +27,17 @@ export function redisUrl(): string {
 export const bullConnectionOptions = {
   maxRetriesPerRequest: null,
 } as const;
+
+/**
+ * Connection OPTIONS for BullMQ (host/port parsed from REDIS_URL). Passing options — rather than an
+ * ioredis instance — lets BullMQ create its own client and avoids ioredis-version type clashes
+ * between our dependency and BullMQ's bundled one.
+ */
+export function bullConnection(): { host: string; port: number; maxRetriesPerRequest: null } {
+  const u = new URL(redisUrl());
+  return {
+    host: u.hostname,
+    port: Number(u.port || 6379),
+    maxRetriesPerRequest: null,
+  };
+}

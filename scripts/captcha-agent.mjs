@@ -11,10 +11,12 @@ import { chromium } from 'playwright-core';
 
 const GATEWAY = process.env.VEXA_GATEWAY ?? 'http://localhost:8056';
 const KEY = process.env.CAPSOLVER_API_KEY;
+const VEXA_API_KEY = process.env.VEXA_API_KEY; // owning-user key — required by the gateway CDP proxy
 const TOKEN = process.argv[2];
 const MEET_URL = process.argv[3] ?? '';
 
 if (!KEY) throw new Error('Set CAPSOLVER_API_KEY');
+if (!VEXA_API_KEY) throw new Error('Set VEXA_API_KEY (the owning-user key; gateway CDP proxy requires it)');
 if (!TOKEN) throw new Error('Usage: node scripts/captcha-agent.mjs <session_token> <meet_url>');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -52,7 +54,9 @@ async function capsolve(websiteURL, websiteKey) {
 async function main() {
   const endpoint = `${GATEWAY}/b/${TOKEN}/cdp`;
   console.log(`[cdp] connecting to ${endpoint}`);
-  const browser = await chromium.connectOverCDP(endpoint);
+  const browser = await chromium.connectOverCDP(endpoint, {
+    headers: { 'X-API-Key': VEXA_API_KEY },
+  });
 
   // Find the page on the Meet domain across all contexts.
   const pages = browser.contexts().flatMap((c) => c.pages());
