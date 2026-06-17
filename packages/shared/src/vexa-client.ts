@@ -11,13 +11,17 @@ export type VexaPlatform = 'google_meet' | 'teams' | 'zoom';
 
 export interface VexaCreateBotInput {
   platform: VexaPlatform;
-  /** Meet code like `abc-defg-hij` (NOT a URL). Use `meetUrlToNativeId()` to derive it. */
+  /** Meet code (`abc-defg-hij`) / Teams meeting id / Zoom id — NOT a URL. See `parseMeetingUrl()`. */
   nativeMeetingId: string;
   botName?: string;
   language?: string;
   task?: 'transcribe' | 'translate';
   recordingEnabled?: boolean;
   transcribeEnabled?: boolean;
+  /** Teams (required) / Zoom (optional) passcode. */
+  passcode?: string;
+  /** Teams only: teams.live.com vs teams.microsoft.com. */
+  teamsBaseHost?: string;
 }
 
 export interface VexaMeeting {
@@ -151,6 +155,8 @@ export class VexaClient {
     if (input.task !== undefined) body.task = input.task;
     if (input.recordingEnabled !== undefined) body.recording_enabled = input.recordingEnabled;
     if (input.transcribeEnabled !== undefined) body.transcribe_enabled = input.transcribeEnabled;
+    if (input.passcode !== undefined) body.passcode = input.passcode;
+    if (input.teamsBaseHost !== undefined) body.teams_base_host = input.teamsBaseHost;
     const { json } = await this.request('POST', '/bots', body);
     return toMeeting(json as Record<string, unknown>);
   }

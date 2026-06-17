@@ -40,6 +40,15 @@ importers:
       better-auth:
         specifier: ^1.6.18
         version: 1.6.18(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(kysely@0.29.2)(postgres@3.4.9))(next@16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)))
+      bullmq:
+        specifier: ^5.78.1
+        version: 5.78.1
+      ical.js:
+        specifier: ^2.1.0
+        version: 2.2.1
+      ioredis:
+        specifier: 5.11.1
+        version: 5.11.1
       next:
         specifier: ^16.2.9
         version: 16.2.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2200,6 +2209,12 @@ packages:
         integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==,
       }
 
+  ical.js@2.2.1:
+    resolution:
+      {
+        integrity: sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg==,
+      }
+
   ioredis@5.11.1:
     resolution:
       {
@@ -3767,6 +3782,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   graceful-fs@4.2.11: {}
+
+  ical.js@2.2.1: {}
 
   ioredis@5.11.1:
     dependencies:

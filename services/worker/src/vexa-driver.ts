@@ -7,12 +7,7 @@
  * We do NOT spawn containers ourselves (no Docker socket) — Vexa owns the bot.
  */
 import { type Database, eq, schema } from '@pmn/db';
-import {
-  type VexaCreateBotInput,
-  VexaClient,
-  type VexaPlatform,
-  meetUrlToNativeId,
-} from '@pmn/shared';
+import { type VexaCreateBotInput, VexaClient, parseMeetingUrl } from '@pmn/shared';
 import { type Job, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import {
@@ -29,20 +24,20 @@ export interface DispatchJobData {
 }
 
 /**
- * Pure: map a meeting row to a Vexa create-bot request. Returns null when there's no usable
- * join URL. Currently derives the Google Meet code from `meetUrl`; Teams/Zoom URL parsing is
- * added alongside their ingestion (the meeting model already carries `meetUrl`).
+ * Pure: map a meeting row to a Vexa create-bot request. Returns null when the meetUrl isn't a
+ * recognized meeting link. Handles Google Meet, Teams (live + enterprise), and Zoom via parseMeetingUrl.
  */
 export function planDispatch(
   meeting: { meetUrl: string | null; source: string },
   opts: { botName: string; language?: string },
 ): VexaCreateBotInput | null {
-  const code = meetUrlToNativeId(meeting.meetUrl);
-  if (!code) return null;
-  const platform: VexaPlatform = 'google_meet';
+  const parsed = parseMeetingUrl(meeting.meetUrl);
+  if (!parsed) return null;
   return {
-    platform,
-    nativeMeetingId: code,
+    platform: parsed.platform,
+    nativeMeetingId: parsed.nativeMeetingId,
+    ...(parsed.passcode ? { passcode: parsed.passcode } : {}),
+    ...(parsed.teamsBaseHost ? { teamsBaseHost: parsed.teamsBaseHost } : {}),
     botName: opts.botName,
     ...(opts.language ? { language: opts.language } : {}),
     recordingEnabled: true,
