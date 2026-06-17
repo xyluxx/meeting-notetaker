@@ -103,6 +103,20 @@ export const SETTINGS_CATALOG = {
     label: 'Never auto-join when a participant is from',
     description: 'Email domains to always skip.',
   },
+  'retention.days': {
+    group: 'retention',
+    type: 'int',
+    default: 0,
+    label: 'Delete meetings older than (days)',
+    description: '0 keeps everything forever. Otherwise old meetings + their data are purged.',
+  },
+  'notifications.webhook_url': {
+    group: 'notifications',
+    type: 'string',
+    default: '',
+    label: 'Notification webhook URL',
+    description: 'When set, a JSON summary is POSTed here when a meeting finishes processing.',
+  },
 } as const satisfies Record<string, SettingDef>;
 
 export type SettingKey = keyof typeof SETTINGS_CATALOG;

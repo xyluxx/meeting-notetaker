@@ -23,7 +23,7 @@ import { QUEUE, bullConnection } from './queues.js';
 
 /** How far ahead we materialize occurrences + look for joins. */
 const HORIZON_DAYS = Number(process.env.CALENDAR_HORIZON_DAYS ?? '14');
-const SYNC_INTERVAL_MS = Number(process.env.CALENDAR_SYNC_INTERVAL_MS ?? `${15 * 60_000}`);
+const SYNC_INTERVAL_MS = Number(process.env.CALENDAR_POLL_MINUTES ?? '5') * 60_000;
 const DEFAULT_LEAD_SECONDS = 60;
 
 export interface PlannedMeeting {
@@ -205,7 +205,7 @@ export async function syncSource(db: Database, source: SourceRow): Promise<numbe
     if (!source.url) return 0;
     events = await fetchIcs(source.url);
   } else {
-    const key = process.env.APP_ENCRYPTION_KEY;
+    const key = process.env.MASTER_ENCRYPTION_KEY;
     if (!source.url || !source.username || !source.passwordEnc || !key) return 0;
     const password = decryptSecret(source.passwordEnc, key);
     events = await fetchCalDav(source.url, source.username, password, now, windowEnd);

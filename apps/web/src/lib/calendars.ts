@@ -132,9 +132,9 @@ export async function addCalDavCalendar(
     autoJoinDefault: boolean;
   },
 ): Promise<string> {
-  const key = process.env.APP_ENCRYPTION_KEY;
+  const key = process.env.MASTER_ENCRYPTION_KEY;
   if (!key)
-    throw new Error('APP_ENCRYPTION_KEY is not configured; cannot store CalDAV credentials.');
+    throw new Error('MASTER_ENCRYPTION_KEY is not configured; cannot store CalDAV credentials.');
   if (!input.username || !input.password)
     throw new Error('CalDAV username and password are required.');
   const passwordEnc = encryptSecret(input.password, key);

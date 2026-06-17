@@ -132,6 +132,40 @@ services:
       redis: { condition: service_healthy }
     networks: [mbnet]
 
+  worker-maintenance:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    env_file: ../../.env
+    environment:
+      WORKER_ROLE: maintenance
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [mbnet]
+
+  # Read-mostly MCP server for the owner's AI agent (reuses the worker image, runs packages/mcp).
+  mcp:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    restart: unless-stopped
+    working_dir: /app
+    command: ['node', '--import', 'tsx', 'packages/mcp/src/index.ts']
+    env_file: ../../.env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pmn}:${POSTGRES_PASSWORD:-pmn}@postgres:5432/${POSTGRES_DB:-pmn}
+      MCP_PORT: '8848'
+      MCP_HOST: 0.0.0.0
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [mbnet]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -141,12 +175,14 @@ services:
     environment:
       CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
       CADDY_TLS: ${CADDY_TLS_MODE:-internal}
+      CADDY_MCP_DOMAIN: ${CADDY_MCP_DOMAIN:-mcp.localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - web
+      - mcp
     networks: [mbnet]
 
 volumes:

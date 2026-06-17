@@ -10,14 +10,20 @@
 import { getDb } from '@pmn/db';
 import { Redis } from 'ioredis';
 import { startScheduler } from './calendar-sync.js';
+import { startMaintenance } from './maintenance.js';
 import { bullConnectionOptions, redisUrl } from './queues.js';
 import { startSummarizer } from './summarizer.js';
 import { startTranscriptIngest } from './transcript-ingest.js';
 import { startVexaDriver } from './vexa-driver.js';
 
-type WorkerRole = 'scheduler' | 'vexa-driver' | 'summarizer';
+type WorkerRole = 'scheduler' | 'vexa-driver' | 'summarizer' | 'maintenance';
 
-const VALID_ROLES: readonly WorkerRole[] = ['scheduler', 'vexa-driver', 'summarizer'];
+const VALID_ROLES: readonly WorkerRole[] = [
+  'scheduler',
+  'vexa-driver',
+  'summarizer',
+  'maintenance',
+];
 
 function resolveRole(): WorkerRole {
   const role = process.env.WORKER_ROLE ?? 'scheduler';
@@ -50,6 +56,9 @@ async function main() {
     startTranscriptIngest({ db });
     startSummarizer({ db });
     console.log('[worker:summarizer] consuming the transcription + summarize queues');
+  } else if (role === 'maintenance') {
+    await startMaintenance({ db: getDb() });
+    console.log('[worker:maintenance] retention sweeps + notifications');
   }
 
   // Heartbeat so the container is observably alive until real processors land.

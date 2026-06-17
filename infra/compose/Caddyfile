@@ -15,3 +15,14 @@
 
 	tls {$CADDY_TLS:internal}
 }
+
+# MCP server for the owner's AI agent. Streamable HTTP can stream responses, so disable buffering.
+{$CADDY_MCP_DOMAIN:mcp.localhost} {
+	encode zstd gzip
+
+	reverse_proxy mcp:8848 {
+		flush_interval -1
+	}
+
+	tls {$CADDY_TLS:internal}
+}
